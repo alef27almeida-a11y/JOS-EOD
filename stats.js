@@ -23,17 +23,18 @@
    return [...m.entries()].map(([name,records])=>({name,...summary(records)}));
  }
  function scoreGroup(s){const v=Number(s);if(!Number.isFinite(v))return 'Não informado';if(v<80)return '70–79';if(v<90)return '80–89';return '90–100';}
- function reasonGroup(p){const reasons=asArray(p.reasons).join(' | ');return groups.filter(([,token])=>reasons.includes(token)).map(([name])=>name);}
+ function reasonGroup(p){if(Array.isArray(p.indicators)&&p.indicators.length)return p.indicators;const reasons=asArray(p.reasons).join(' | ');return groups.filter(([,token])=>reasons.includes(token)).map(([name])=>name);}
  function compute(history,range='all',reference=Date.now()){
    const items=rangeFilter(history,range,reference),done=items.filter(x=>[WIN,LOSS,'EMPATE'].includes(x.result));
    const rateSort=(a,b)=>b.decided-a.decided || (b.rate??-1)-(a.rate??-1);
+   const byStrategy=group(done,x=>String(x.strategy||'Não informado')+' · '+String(x.regime||'Sem classificação')).sort(rateSort);
    const byAsset=group(done,x=>String(x.symbol||'').replace(/USDT$/,'')+'/USDT').sort(rateSort);
    const byHour=group(done,x=>hourBR(x.time)).sort((a,b)=>a.name.localeCompare(b.name));
    const byDirection=group(done,x=>x.side||x.direction||'?').sort(rateSort);
    const byIndicator=group(done,reasonGroup).sort(rateSort);
    const byScore=group(done,x=>scoreGroup(x.score)).sort((a,b)=>a.name.localeCompare(b.name));
    const recent=done.filter(x=>x.result!== 'EMPATE').slice(-20);
-   return {overall:summary(done),last20:summary(recent),byAsset,byHour,byDirection,byIndicator,byScore,unresolved:items.length-done.length,observations:items.length};
+   return {overall:summary(done),last20:summary(recent),byStrategy,byAsset,byHour,byDirection,byIndicator,byScore,unresolved:items.length-done.length,observations:items.length};
  }
  function previewStats(previews,range='all',reference=Date.now()){
    const items=rangeFilter(asArray(previews).map(x=>({...x,time:Number.isFinite(x.issuedAt)?x.issuedAt:x.time})),range,reference);return {sent:items.length,confirmed:items.filter(x=>x.status==='CONFIRMADO').length,canceled:items.filter(x=>x.status==='CANCELADO').length,notObserved:items.filter(x=>x.status==='NÃO OBSERVADO').length,awaiting:items.filter(x=>x.status==='AGUARDANDO').length};
@@ -41,7 +42,7 @@
  function csv(records){const rows=[['Ativo','Direção','Data e hora Brasília','Vela abre UTC','Vela fecha UTC','Nota técnica','Indicadores usados','Preço abertura','Preço fechamento','Variação favorável %','Resultado','Fonte','Notificação principal']];
    const fmt=x=>new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',dateStyle:'short',timeStyle:'medium'}).format(new Date(x));
    for(const r of asArray(records)){
-     rows.push([r.symbol||'',r.side||r.direction||'',Number.isFinite(r.time)?fmt(r.time):'',Number.isFinite(r.time)?new Date(r.time).toISOString():'',Number.isFinite(r.time)?new Date(r.time+300000).toISOString():'',r.score??'',asArray(r.reasons).join(' | '),r.open??'',r.close??'',Number.isFinite(r.favorablePct)?r.favorablePct.toFixed(5):'',r.result||'NÃO AVALIADO','Binance Spot M5',r.notified===true?'Sim':r.notified===false?'Não':'Desconhecido']);
+     rows.push([r.symbol||'',r.side||r.direction||'',Number.isFinite(r.time)?fmt(r.time):'',Number.isFinite(r.time)?new Date(r.time).toISOString():'',Number.isFinite(r.time)?new Date(r.time+300000).toISOString():'',r.score??'',asArray(r.reasons).join(' | '),r.open??'',r.close??'',Number.isFinite(r.favorablePct)?r.favorablePct.toFixed(5):'',r.result||'NÃO AVALIADO','Binance referência; Safirion permitidos manualmente',r.notified===true?'Sim':r.notified===false?'Não':'Desconhecido']);
    }
    const cell=x=>'"'+String(x).replaceAll('"','""')+'"';return '\uFEFF'+rows.map(r=>r.map(cell).join(';')).join('\r\n');
  }

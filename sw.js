@@ -1,5 +1,5 @@
-const CACHE = 'radarm5-shell-v3';
-const CORE = ['./','./index.html','./style.css','./app.js','./engine.js','./learner.js','./stats.js','./icon.svg','./icon-192.png','./icon-512.png','./manifest.webmanifest'];
+const CACHE = 'radarm5-shell-safirion-v13';
+const CORE = ['./','./index.html','./style.css','./app.js','./engine.js','./learner.js','./stats.js','./safirion.js','./adaptive.js','./icon.svg','./icon-192.png','./icon-512.png','./manifest.webmanifest'];
 self.addEventListener('install',evt=>evt.waitUntil(caches.open(CACHE).then(c=>c.addAll(CORE)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',evt=>evt.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',evt=>{

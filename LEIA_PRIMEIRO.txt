@@ -1,68 +1,44 @@
-RADAR M5 — VERSÃO 1.1 · ESTATÍSTICAS DOS AVISOS
-===================================
+RADAR M5 v1.3 — FILTRO MANUAL SAFIRION + ESTRATÉGIAS ADAPTATIVAS
+=================================================================
 
-O QUE É
-App web instalável (PWA) de análise técnica de pares de criptomoedas SPOT/USDT da Binance, com velas de 5 minutos. NÃO é um APK, NÃO envia ordens e NÃO lê os ativos exclusivos da IQ Option.
+ATENÇÃO: ESTA VERSÃO NÃO RECEBE DADOS DA SAFIRION.
+A Safirion divulga mais de 130 ativos, mas não há catálogo nominal/API pública documentada de OHLC M5 encontrado nesta pesquisa. Este app restringe seu scanner aos NOMES que VOCÊ informar como existentes na Safirion, e só analisa candles de referência Binance Spot USDT quando o símbolo é exatamente compatível. Não há cotação Safirion, não há integração de conta e não há previsão de WIN financeiro.
 
-1) INSTALAR PELO CELULAR, SEM COMPUTADOR
+PRIMEIRO USO
+1) Abra o catálogo de ativos da Safirion na conta demo e copie os nomes exatos. Não informe login/senha.
+2) No Radar, cole os ativos em "Somente ativos que você identificou na Safirion", um por linha.
+3) São monitoráveis por este conector gratuito apenas símbolos que sejam também pares Binance Spot USDT idênticos, por exemplo BTC/USDT (exemplo de formato, NÃO confirmação de disponibilidade na Safirion).
+4) BTC/USD, EUR/USD, XAUUSD, ações e OTC NÃO são convertidos para outro mercado. São listados como indisponíveis. Não serão emitidos sinais até termos uma fonte de preços autorizada e correspondente.
+5) Toque em Salvar lista de ativos, depois em Iniciar radar.
+6) Confira o status e a fonte apresentada em cada sinal: Binance como referência, nunca Safirion.
 
-A. Extraia este ZIP no Android (Gerenciador de Arquivos / Files).
-B. Abra https://github.com no navegador, crie uma conta caso necessário e um repositório novo, por exemplo "radar-m5" (pode ser público; este projeto não contém chave de API nem senhas).
-C. No repositório, toque em "Add file" > "Upload files" e envie os arquivos desta pasta para a RAIZ do repositório. Arquivos necessários: index.html, style.css, app.js, engine.js, learner.js, stats.js, manifest.webmanifest, sw.js, icon.svg, icon-192.png e icon-512.png.
-D. Abra Settings > Pages; em "Build and deployment" selecione "Deploy from a branch", branch "main", pasta "/ (root)" e salve. Espere a publicação.
-E. Abra no Chrome a URL que o GitHub Pages informar (normalmente https://SEU-USUARIO.github.io/radar-m5/ ). Toque no menu do Chrome > "Instalar app" ou "Adicionar à tela inicial".
+ANÁLISE M5 COM CONTEXTO M15
+- Tendência: EMAs M5/M15, DMI/ADX, RSI, pressão agressora (Binance), ATR.
+- Rompimento: contração Bollinger, rompimento de máxima/mínima, volume relativo, pressão, ATR.
+- Lateralização: ADX fraco, Bollinger, RSI, pressão, volatilidade.
+- Transição / dados incompletos / conflito: AGUARDAR.
+- Mínimo 170 velas históricas para calcular contexto M15; usa SOMENTE velas encerradas na confirmação.
+- Os parâmetros 23/18 ADX, 55% pressão e limites de ATR são HIPÓTESES, não taxa de vitória validada.
+- O pré-alerta 2 min antes é PROVISÓRIO; confirmação exige a vela M5 anterior fechada.
 
-Importante: abrir um HTML diretamente na pasta Downloads não é equivalente a publicá-lo via HTTPS; CORS, notificações e a instalação como aplicativo podem falhar em file://.
+ESTATÍSTICAS
+- Resultado direcional no mercado Binance de referência para a vela M5 seguinte.
+- Taxa de acerto DIRECIONAL não representa o resultado que teria acontecido dentro da Safirion.
+- Novo agrupamento por estratégia e regime, além de ativo, horário, direção e indicadores.
+- Começa com armazenamento próprio v1.3 para não misturar estatísticas de mercados diferentes.
+- Históricos da versão anterior não são excluídos do navegador, mas não são migrados. Exporte antes de atualizar se precisar.
 
-2) USAR
-- Configure 50 pares no primeiro teste (a opção de todos os pares USDT exige muitas conexões e pode ser lenta no celular).
-- Exigência técnica inicial: 80 pontos.
-- Pré-alerta: 2 minutos antes. Também há opções de 30s, 1min e 3min.
-- Toque em "Autorizar notificações" e conceda a permissão se o Chrome solicitar.
-- Toque em "Iniciar radar". Espere o carregamento das velas e do WebSocket.
-- Pré-alerta = candidato PROVISÓRIO, baseado na vela ainda em formação.
-- Quando a vela anterior fechar, o radar reavalia e pode sugerir COMPRA / VENDA ou AGUARDAR no começo da vela seguinte. Se a atualização chegar atrasada, o sinal não deve ser mostrado como pontual.
-- Aberturas de velas M5: xx:00, xx:05, xx:10, xx:15, xx:20 etc., horário de Brasília.
-- Enquanto estiver aberto e recebendo dados, a IA registra previsões e compara a direção com o fechamento da vela de 5 min, salvando o aprendizado no navegador.
-- Use "Exportar memória" periodicamente.
+PUBLICAR PELO CELULAR (SE JÁ USA O GITHUB PAGES)
+1) Faça backup/exporte a memória da versão anterior antes de qualquer atualização.
+2) Abra o repositório JOS-EOD no GitHub (Chrome > Site para computador se necessário).
+3) Substitua os arquivos da raiz por TODOS os arquivos desta pasta, usando os mesmos nomes.
+4) Inclua os NOVOS arquivos safirion.js e adaptive.js. Eles devem ficar na raiz, ao lado de index.html.
+5) Após Commit changes, espere publicação. Abra em uma aba anônima para confirmar que a nova interface foi publicada; em seguida abra o app normal.
+6) No primeiro acesso, o radar fica sem ativos até você cadastrar e salvar a lista.
 
-3) O QUE SIGNIFICAM OS NÚMEROS
-- Pontuação 0-100: concordância de filtros técnicos (EMA, RSI, ADX/DMI, MACD, volume, participação de compras agressoras). NÃO é probabilidade de vitória.
-- Acerto técnico: a vela M5 seguinte fechou na direção indicada; NÃO é comprovante de ganho em opção binária.
-- O modelo incremental usa histórico fechado e exemplos novos; ainda é experimental e não possui precisão preditiva validada em mercado real.
-
-4) LIMITAÇÕES
-- Abrange apenas os pares SPOT/USDT disponíveis pela Binance e compatíveis com o monitoramento no aparelho. Não cobre todas as bolsas, ações, forex ou OTC.
-- A disponibilidade de APIs públicas depende da rede, região, limites técnicos e regras da provedora.
-- A página pode ser pausada pelo Android quando ficar em segundo plano, com a tela bloqueada ou o navegador fechado. NÃO há garantia de conexão 24/7 nem de entrega de notificação nessas condições. Para alertas confiáveis a qualquer momento, a próxima fase deve usar servidor de coleta 24/7 + push.
-- A própria conexão de dados pode atrasar. Não existe “horário perfeito” ou entrada garantida.
-- Não negocia em nome do usuário, não utiliza dinheiro real, não acessa contas de corretoras.
-
-5) ARQUIVOS
-index.html           Tela principal
-style.css            Interface responsiva
-app.js               Coleta, sinal, notificações e acompanhamento
-engine.js            Indicadores técnicos
-learner.js           Modelo estatístico incremental
-stats.js             Estatísticas e exportação CSV dos sinais
-manifest.webmanifest Instalação PWA
-sw.js                Cache da interface (não coleta preços em segundo plano)
-icon-*.png / icon.svg Ícones
-
-TESTES FEITOS
-- Validação de sintaxe JavaScript.
-- Teste de cálculo técnico e deduplicação do aprendizado.
-- Teste de navegador com dados simulados: carregamento, pré-alerta, sinal após fechamento e resultado técnico.
-NÃO foi possível testar o acesso ao vivo à Binance nesta sessão e a instalação no seu Android ainda depende de você publicar e testar a PWA.
-
-NOVIDADES 1.1 — ESTATÍSTICAS DOS AVISOS
-- Novo painel “Resultados dos avisos do Radar” com taxa de acerto direcional da vela M5 fechada.
-- Estatísticas por ativo, horário de Brasília, direção, faixa de pontuação e indicador usado no sinal.
-- Últimos 20 sinais avaliados; filtro por últimos 7, 30 dias e todo histórico disponível.
-- Pré-alertas de 2 minutos contabilizados separadamente: confirmados na abertura, cancelados/mudados ou aguardando.
-- Exportação CSV dos sinais mostrados e seus preços de abertura/fechamento, com indicador do alerta principal notificado.
-- Até 1.200 resultados locais guardados e até 500 pré-alertas; não é banco de dados em nuvem nem garante retenção permanente.
-- O app conserva a memória antiga no mesmo navegador/mesma origem do site. Hospedar em outro endereço gera armazenamento distinto.
-- Nenhuma taxa de acerto do próprio histórico é chance garantida para sinais futuros. Grupos com menos de 30 observações mostram aviso de amostra pequena.
-- Aplicativo precisa estar aberto e conectado para acompanhar os fechamentos em tempo real. Se perder conexão, resultados não observáveis ficam sem avaliação.
-- Para atualizar um repositório GitHub Pages existente: substitua todos os arquivos do pacote na raiz e aguarde publicação. Não misture versões de index.html, app.js, stats.js e sw.js.
+IMPORTANTE
+- O GitHub Pages não monitora o mercado quando o celular/navegador está suspenso.
+- O aplicativo não abre operações, não lê contas, não promete lucro, não possui dados internos da Safirion.
+- Dados Binance podem diferir de preços, spreads e liquidação da Safirion.
+- A corretora Safirion é operada por empresa estrangeira; verifique riscos e regulamentação antes de colocar dinheiro real.
+- Não foi testada a integração com a Safirion (não há conexão disponível).

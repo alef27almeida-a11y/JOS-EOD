@@ -8,14 +8,14 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon-192.png" type="image/png">
   <link rel="stylesheet" href="style.css">
-  <title>Radar M5 — Alertas de Mercado</title>
+  <title>Radar M5 — Filtro Safirion</title>
 </head>
 <body>
   <div class="app-shell">
     <header class="header">
       <div class="identity">
         <div class="logo" aria-hidden="true">◈</div>
-        <div><h1>RADAR <span>M5</span></h1><p>Scanner de oportunidades • Binance Spot USDT</p></div>
+        <div><h1>RADAR <span>M5</span></h1><p>Lista Safirion informada • preço de referência Binance</p></div>
       </div>
       <div id="liveStatus" class="live-status off"><span class="status-dot"></span><span id="liveLabel">Desligado</span></div>
     </header>
@@ -33,13 +33,8 @@
     <section class="panel controls">
       <div class="section-title"><h2>Configurar scanner</h2><span class="tiny-tag">Sem operações automáticas</span></div>
       <div class="field-grid">
-        <label>Mercados monitorados
-          <select id="universe">
-            <option value="50">50 pares USDT mais líquidos</option>
-            <option value="100" selected>100 pares USDT mais líquidos</option>
-            <option value="200">200 pares USDT mais líquidos</option>
-            <option value="all">Todos os pares USDT ativos (muito pesado)</option>
-          </select>
+        <label>Fonte de candles
+          <div class="timing-hint">Binance Spot USDT como <b>referência externa</b>; NÃO são preços ou resultados da Safirion.</div>
         </label>
         <label>Exigência técnica
           <select id="threshold">
@@ -48,6 +43,14 @@
             <option value="90">90 pontos • muito seletivo</option>
           </select>
         </label>
+      </div>
+      <div class="assets-filter" style="margin-top:14px">
+        <h3>Somente ativos que você identificou na Safirion</h3>
+        <p class="hint">Cole os nomes da tela de ativos da Safirion, um por linha. Para receber dados de referência, o símbolo deve coincidir com um par Spot USDT, como <b>BTC/USDT</b>. <b>BTC/USD não é BTC/USDT</b>. Forex, ouro, ações, OTC e instrumentos sem correspondência ficarão sem sinal até haver fonte de preços adequada.</p>
+        <textarea id="safirionAssets" rows="5" placeholder="Cole somente ativos que você comprovou na Safirion. Exemplo de formato (não é catálogo verificado):&#10;BTC/USDT&#10;ETH/USDT"></textarea>
+        <div class="button-row"><button id="saveAssets" class="secondary" type="button">Salvar lista de ativos</button></div>
+        <p id="safirionCount" class="message">0 ativos cadastrados</p>
+        <p id="unsupportedNames" class="hint">Nenhuma lista cadastrada ainda.</p>
       </div>
       <div class="field-grid" style="margin-top:12px">
         <label>Pré-alerta antes da próxima vela
@@ -76,7 +79,7 @@
       <div class="progress-track" aria-hidden="true"><div id="loadProgress"></div></div>
       <div class="status-grid">
         <div><strong id="assetsCount">0</strong><small>monitorados</small></div>
-        <div><strong id="universeCount">0</strong><small>disponíveis</small></div>
+        <div><strong id="universeCount">0</strong><small>pares compatíveis</small></div>
         <div><strong id="alertsCount">0</strong><small>sinais no painel</small></div>
         <div><strong id="lastUpdate">—</strong><small>última vela</small></div>
       </div>
@@ -91,7 +94,7 @@
 
     <section class="panel signals">
       <div class="section-title"><h2>Oportunidades M5</h2><span id="freshBadge" class="tiny-tag">Sem sinais novos</span></div>
-      <p class="hint">Somente sinais calculados após a confirmação do fechamento anterior e nos primeiros segundos após a abertura. Uma pontuação de 90/100 indica filtros concordantes, <b>não</b> 90% de chance de WIN.</p>
+      <p class="hint">Sinais calculados com candles Spot USDT da Binance apenas para ativos que você listou da Safirion. Não representam cotações da corretora. Somente sinais calculados após a confirmação do fechamento anterior e nos primeiros segundos após a abertura. Uma pontuação de 90/100 indica filtros concordantes, <b>não</b> 90% de chance de WIN.</p>
       <div id="signalList" class="signal-list"><div class="empty">O radar mostrará aqui os ativos que passarem nos filtros.</div></div>
     </section>
 
@@ -109,7 +112,7 @@
 
     <section class="panel statistics" id="statisticsPanel">
       <div class="section-title"><h2>Resultados dos avisos do Radar</h2><span class="tiny-tag">Vela M5 fechada</span></div>
-      <p class="hint">Compara cada sinal confirmado na abertura com a vela M5 que se encerrou. Isso mede <b>acerto de direção</b>, não o lucro de uma operação.</p>
+      <p class="hint">Resultados direcionais da Binance nos pares cadastrados por você. Eles não correspondem necessariamente à liquidação de operações da Safirion. Não mede lucro financeiro.</p>
       <div class="field-grid">
         <label>Período analisado
           <select id="statsPeriod"><option value="all" selected>Todo o histórico salvo</option><option value="7">Últimos 7 dias</option><option value="30">Últimos 30 dias</option></select>
@@ -131,6 +134,7 @@
       <p id="statsWarning" class="stats-note">Aguardando sinais avaliados. Não é uma probabilidade validada de WIN financeiro.</p>
       <div class="preview-performance" id="previewPerformance">Pré-alertas de 2 min: nenhum registrado.</div>
       <div class="stats-groups">
+        <section><h3>Por estratégia e regime</h3><div id="byStrategy" class="stats-list"></div></section>
         <section><h3>Por ativo</h3><div id="byAsset" class="stats-list"></div></section>
         <section><h3>Por horário (Brasília)</h3><div id="byHour" class="stats-list"></div></section>
         <section><h3>Por direção</h3><div id="byDirection" class="stats-list"></div></section>
@@ -152,11 +156,13 @@
       <div id="historyList" class="history-list"><div class="empty">Sem histórico ainda.</div></div>
     </section>
 
-    <footer><strong>Leitura experimental, não promessa de lucro.</strong> Dados da Binance Spot podem ser diferentes dos preços e ativos da IQ Option. O radar usa internet e não envia ordens. No Android, a página pode ser suspensa em segundo plano; não há monitoramento 24h com o navegador fechado. Sinais atrasados são descartados.</footer>
+    <footer><strong>Leitura experimental, não promessa de lucro.</strong> Dados da Binance Spot NÃO são cotações da Safirion. Catálogo Safirion informado manualmente; não existe integração com a corretora. O radar usa internet e não envia ordens. No Android, a página pode ser suspensa em segundo plano; não há monitoramento 24h com o navegador fechado. Sinais atrasados são descartados.</footer>
   </div>
   <script src="engine.js"></script>
   <script src="learner.js"></script>
   <script src="stats.js"></script>
+  <script src="safirion.js"></script>
+  <script src="adaptive.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

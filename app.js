@@ -1,25 +1,27 @@
-/* Radar M5 — Binance SPOT USDT, scanner somente informativo; sem enviar ordens. */
+/* Radar M5 — Somente lista informada dos ativos Safirion; candles Binance de referência, sem enviar ordens. */
 (()=>{'use strict';
-const E=window.M5Engine, L=window.M5Learner, S=window.M5Stats;
-if(!E||!L||!S){document.body.insertAdjacentHTML('afterbegin','<p>Falha ao carregar o motor de análise.</p>');return;}
-const $=id=>document.getElementById(id), FIVE=300000, KEY='radar_m5_state_v2';
+const E=window.M5Engine, L=window.M5Learner, S=window.M5Stats, A=window.M5Adaptive, F=window.M5Safirion;
+if(!E||!L||!S||!A||!F){document.body.insertAdjacentHTML('afterbegin','<p>Falha ao carregar o motor de análise.</p>');return;}
+const $=id=>document.getElementById(id), FIVE=300000, KEY='radar_m5_safirion_v13';
 const now=()=>Date.now();
 const brTime=(ts,seconds=false)=>new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',...(seconds?{second:'2-digit'}:{})}).format(new Date(ts));
 const escapeHtml=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-const MODE='BN_SPOT_USDT';
+const MODE='SAFIRION_MANUAL_ALLOWLIST_BINANCE_REFERENCE';
 function restore(){try {const s=JSON.parse(localStorage.getItem(KEY)||'{}');return s && typeof s==='object'?s:{};}catch{return {}}}
 const old=restore();
 const state={run:false,generation:0,loading:false,universe:[],bars:new Map(),forming:new Map(),fresh:new Map(),sockets:[],socketCount:0,loadCount:0,alertCount:0,preSlot:0,confirmedSlot:0,previews:[],signals:[],pending:Array.isArray(old.pending)?old.pending.slice(-200):[],history:Array.isArray(old.history)?old.history.slice(-1200):[],preAlerts:Array.isArray(old.preAlerts)?old.preAlerts.slice(-500):[],model:new L.OnlineModel(old.model),evaluated:Number(old.evaluated)||0,correct:Number(old.correct)||0,beforeInstallPrompt:null,lastSync:0,lastData:0,lastVisible:now(),syncing:false,alertSeen:new Set(),lastTrainingSave:0};
-const prefs={universe:['50','100','200','all'].includes(old.prefs?.universe)?old.prefs.universe:'100',threshold:['70','80','90'].includes(old.prefs?.threshold)?old.prefs.threshold:'80',lead:['30','60','120','180'].includes(String(old.prefs?.lead))?String(old.prefs.lead):'120',learning:old.prefs?.learning!==false,sound:old.prefs?.sound!==false,voice:!!old.prefs?.voice,notify:old.prefs?.notify!==false};
+const prefs={allowedText:String(old.prefs?.allowedText||''),threshold:['70','80','90'].includes(old.prefs?.threshold)?old.prefs.threshold:'80',lead:['30','60','120','180'].includes(String(old.prefs?.lead))?String(old.prefs.lead):'120',learning:old.prefs?.learning!==false,sound:old.prefs?.sound!==false,voice:!!old.prefs?.voice,notify:old.prefs?.notify!==false};
 function setValue(id,v){if($(id))$(id).value=v}
-setValue('universe',prefs.universe);setValue('threshold',prefs.threshold);setValue('lead',prefs.lead);
+$('safirionAssets').value=prefs.allowedText; setValue('threshold',prefs.threshold);setValue('lead',prefs.lead);
 for(const [key,id] of [['learning','learningToggle'],['sound','sound'],['voice','voice'],['notify','notify']])$(id).checked=prefs[key];
 function save(){try{localStorage.setItem(KEY,JSON.stringify({prefs,model:state.model.toJSON(),pending:state.pending.slice(-200),history:state.history.slice(-1200),preAlerts:state.preAlerts.slice(-500),evaluated:state.evaluated,correct:state.correct}));}catch(e){setMessage('Sem espaço para armazenar o histórico. Exporte a memória.','error')}}
 let activeToast=null;
 function setMessage(s,type=''){const e=$('connectionMessage');e.textContent=s;e.className='message '+type;}
 function status(s,label){$('liveStatus').className='live-status '+s;$('liveLabel').textContent=label;}
 function setProgress(p){$('loadProgress').style.width=Math.max(0,Math.min(100,p))+'%';}
+function refreshSafirionList(){const r=F.parseList($('safirionAssets').value);$('safirionCount').textContent=`${r.approved.length} pares USDT de referência cadastrados`;$('unsupportedNames').textContent=r.unmapped.length?'Sem cotação compatível no radar: '+r.unmapped.join(', '):'Outras classes, como EUR/USD, ouro e OTC, dependem de fonte específica.'; return r;}
+
 function formatDuration(ms){const sec=Math.max(0,Math.ceil(ms/1000));return `${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`}
 function updateClock(){const t=now(),next=Math.floor(t/FIVE)*FIVE+FIVE;$('clock').textContent=brTime(t,true);$('countdown').textContent=formatDuration(next-t);$('leadHint').textContent=`Pré-alerta ${Number(prefs.lead)/60} min antes • ${brTime(next-Number(prefs.lead)*1000)} para vela ${brTime(next)}`;}
 function speak(txt){if(!prefs.voice||!('speechSynthesis' in window))return;try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.lang='pt-BR';u.rate=1.1;speechSynthesis.speak(u);}catch{}}
@@ -40,7 +42,7 @@ function refreshStats(){const pending=state.pending.filter(p=>p.status==='PENDEN
  $('learningBadge').textContent=state.model.live>=100&&state.evaluated>=30?'Filtro adaptativo ativo':'Modelo em treinamento';$('learningMessage').textContent=`Exemplos históricos: ${state.model.historical}. Ao vivo: ${state.model.live}. Precisão ao vivo é medida separadamente do treino e não é chance de lucro.`;
  $('technicalWins').textContent=wins;$('technicalLosses').textContent=losses;$('technicalPending').textContent=pending.length;$('technicalRate').textContent=wins+losses?Math.round(wins*100/(wins+losses))+'%':'—';
 }
-function renderHistory(){const h=state.history.slice(-12).reverse();$('historyList').innerHTML=h.length?h.map(x=>`<div class="history-row"><span><b>${escapeHtml(x.symbol.slice(0,-4))}/USDT</b> • ${escapeHtml(x.side||x.direction||'—')}<small>${brTime(x.time)} • fechamento ${brTime(x.time+FIVE)} • score ${x.score}/100</small></span><span class="right ${x.result==='ACERTO TÉCNICO'?'win':x.result==='ERRO TÉCNICO'?'loss':'pending'}">${escapeHtml(x.result)}</span></div>`).join(''):'<div class="empty">Ainda não há previsões avaliadas ao vivo.</div>';}
+function renderHistory(){const h=state.history.slice(-12).reverse();$('historyList').innerHTML=h.length?h.map(x=>`<div class="history-row"><span><b>${escapeHtml(x.symbol.slice(0,-4))}/USDT</b> • ${escapeHtml(x.side||x.direction||'—')}<small>${brTime(x.time)} • fechamento ${brTime(x.time+FIVE)} • score ${x.score}/100 • ${escapeHtml(x.strategy||'')}</small></span><span class="right ${x.result==='ACERTO TÉCNICO'?'win':x.result==='ERRO TÉCNICO'?'loss':'pending'}">${escapeHtml(x.result)}</span></div>`).join(''):'<div class="empty">Ainda não há previsões avaliadas ao vivo.</div>';}
 function renderDetailedStats(){
  const range=$('statsPeriod').value;
  const subset=$('statsScope').value==='main'?state.history.filter(x=>x.notified===true):state.history;
@@ -55,7 +57,7 @@ function renderDetailedStats(){
   const parts=rows.slice(0,limit).map(x=>`<div class="stats-item ${x.decided<30?'low-sample':''}"><strong>${escapeHtml(x.name)}</strong><span class="stats-percent">${x.rate===null?'—':x.rate.toFixed(1)+'%'}</span><small>${x.wins} acertos · ${x.losses} erros · ${x.ties} empates · ${x.decided} avaliados${x.decided<30?' · amostra pequena':''}</small></div>`);
   $(target).innerHTML=parts.join('')||'<div class="empty">Ainda sem observações nesse grupo.</div>';
  }
- show('byAsset',a.byAsset,10);show('byHour',a.byHour,24);show('byDirection',a.byDirection);show('byScore',a.byScore);show('byIndicator',a.byIndicator);
+ show('byStrategy',a.byStrategy||[],8);show('byAsset',a.byAsset,10);show('byHour',a.byHour,24);show('byDirection',a.byDirection);show('byScore',a.byScore);show('byIndicator',a.byIndicator);
 }
 function markPreAlerts(target,confirmed){let changed=false;
  const matched=new Set(confirmed.map(x=>x.symbol+'|'+x.side));
@@ -80,8 +82,8 @@ function finishSignal(p,k){
  if(result!=='EMPATE'&&result!=='INDEFINIDO'){state.evaluated++;if(result==='ACERTO TÉCNICO')state.correct++;}
 }
 function symbolLink(symbol){return 'https://www.binance.com/pt-BR/trade/'+encodeURIComponent(symbol.replace(/USDT$/,''))+'_USDT?type=spot'}
-function renderSignals(){const t=now();state.signals=state.signals.filter(s=>s.time+15000>t);const active=state.signals.slice(0,8);$('freshBadge').textContent=active.length?`${active.length} sinal(is) recente(s)`:'Sem sinais novos';$('signalList').innerHTML=active.length?active.map(s=>`<div class="signal-card ${s.side==='COMPRA'?'buy':'sell'} ${t>s.time+10000?'expired':''}"><div class="signal-top"><div><span class="symbol">${escapeHtml(s.symbol.replace(/USDT$/,''))}/USDT</span><div class="direction">${s.side==='COMPRA'?'▲ COMPRA':'▼ VENDA'}</div></div><span class="score">${s.score}/100</span></div><div class="signal-sub">Vela ${brTime(s.time)} a ${brTime(s.time+FIVE)} • ${t>s.time+10000?'VENCIDO':'ABERTURA RECENTE'}</div><div class="reasons">${escapeHtml(s.reasons.join(' · '))}</div><div class="signal-actions"><span class="valid">Direção técnica, não lucro garantido</span><a rel="noopener noreferrer" target="_blank" href="${symbolLink(s.symbol)}">Ver ativo ↗</a></div></div>`).join(''):'<div class="empty">Nenhum sinal confirmado nesta abertura. O radar não força entradas.</div>';}
-function renderPreviews(){const ps=state.previews.slice(0,5);$('previewList').innerHTML=ps.length?ps.map(s=>`<div class="preview-item"><b>${escapeHtml(s.symbol.replace('USDT',''))}/USDT</b><span class="${s.side==='COMPRA'?'green':'red'}">${s.side}</span><span>${s.score}/100</span><small>${brTime(s.time)} • provisório</small></div>`).join(''):'<div class="empty">Aguardando o horário de pré-alerta.</div>';}
+function renderSignals(){const t=now();state.signals=state.signals.filter(s=>s.time+15000>t);const active=state.signals.slice(0,8);$('freshBadge').textContent=active.length?`${active.length} sinal(is) recente(s)`:'Sem sinais novos';$('signalList').innerHTML=active.length?active.map(s=>`<div class="signal-card ${s.side==='COMPRA'?'buy':'sell'} ${t>s.time+10000?'expired':''}"><div class="signal-top"><div><span class="symbol">${escapeHtml(s.symbol.replace(/USDT$/,''))}/USDT</span><div class="direction">${s.side==='COMPRA'?'▲ COMPRA':'▼ VENDA'}</div></div><span class="score">${s.score}/100</span></div><div class="signal-sub">Vela ${brTime(s.time)} a ${brTime(s.time+FIVE)} • ${t>s.time+10000?'VENCIDO':'ABERTURA RECENTE'}</div><div class="reasons"><b>${escapeHtml(s.regime||'')} · ${escapeHtml(s.strategy||'')}</b> · ${escapeHtml(s.reasons.join(' · '))}</div><div class="signal-actions"><span class="valid">Direção técnica, não lucro garantido</span><span class="valid">Fonte: Binance referência</span></div></div>`).join(''):'<div class="empty">Nenhum sinal confirmado nesta abertura. O radar não força entradas.</div>';}
+function renderPreviews(){const ps=state.previews.slice(0,5);$('previewList').innerHTML=ps.length?ps.map(s=>`<div class="preview-item"><b>${escapeHtml(s.symbol.replace('USDT',''))}/USDT</b><span class="${s.side==='COMPRA'?'green':'red'}">${s.side}</span><span>${s.score}/100</span><small>${escapeHtml(s.regime||'')} · ${brTime(s.time)} • provisório</small></div>`).join(''):'<div class="empty">Aguardando o horário de pré-alerta.</div>';}
 function validSymbol(t){const s=t.symbol||t.s||'';return typeof s==='string'&&/^[A-Z0-9]{3,25}USDT$/.test(s)&&Number(t.quoteVolume||t.q)>0&&!/(UP|DOWN|BULL|BEAR)USDT$/.test(s)&&!(/^(USDC|TUSD|FDUSD|USDP|DAI|EUR|BRL|USDE|USD1|PYUSD|EURI|RLUSD)USDT$/.test(s));}
 const HOSTS=['https://data-api.binance.vision','https://api.binance.com'];
 let activeBase=HOSTS[0];
@@ -89,13 +91,21 @@ async function reqJSON(path,ms=12000){const urls=[activeBase,...HOSTS.filter(x=>
  for(const base of urls){let controller=new AbortController();let timeout=setTimeout(()=>controller.abort(),ms);
  try{const r=await fetch(base+path,{signal:controller.signal,cache:'no-store'});if(!r.ok)throw Error(`HTTP ${r.status}`);const data=await r.json();activeBase=base;return data;}catch(e){err=e;}finally{clearTimeout(timeout)}}throw err||Error('API indisponível');}
 function parseBar(k){return {t:Number(k[0]),open:Number(k[1]),high:Number(k[2]),low:Number(k[3]),close:Number(k[4]),volume:Number(k[5]),takerBuy:Number(k[9]||0)};}
-async function getUniverse(gen){setMessage('Carregando lista de ativos USDT...');const [info,tickers]=await Promise.all([reqJSON('/api/v3/exchangeInfo',16000),reqJSON('/api/v3/ticker/24hr',18000)]);
- if(gen!==state.generation)throw Error('Cancelado');const allowed=new Set((info.symbols||[]).filter(s=>s.status==='TRADING'&&s.quoteAsset==='USDT'&&s.isSpotTradingAllowed!==false).map(s=>s.symbol));
- const eligible=tickers.filter(t=>validSymbol(t)&&allowed.has(t.symbol)).sort((a,b)=>Number(b.quoteVolume)-Number(a.quoteVolume));
- if(eligible.length<5)throw Error('A fonte não retornou ativos USDT suficientes.');let n=prefs.universe==='all'?eligible.length:Number(prefs.universe);return eligible.slice(0,n).map(t=>t.symbol);}
-async function loadBars(symbol,gen,limit=120){const rows=await reqJSON(`/api/v3/klines?symbol=${symbol}&interval=5m&limit=${limit}`,15000);if(gen!==state.generation)return false;
- if(!Array.isArray(rows))return false;const t=now();const valid=rows.filter(k=>Number(k[6])<t-250).map(parseBar).filter(b=>Number.isFinite(b.close)&&Number.isFinite(b.t));if(valid.length<70)return false;
- state.bars.set(symbol,valid.slice(-125));const current=rows.find(k=>Number(k[0])===Math.floor(t/FIVE)*FIVE);if(current){state.forming.set(symbol,parseBar(current));state.fresh.set(symbol,t);}return true;}
+async function getUniverse(gen){
+ const listed=F.parseList(prefs.allowedText);
+ if(!listed.approved.length)throw Error('Cadastre os ativos exibidos na Safirion com símbolo USDT exatamente correspondente. Não há lista oficial de ativos carregada.');
+ setMessage('Validando os ativos digitados contra a fonte de referência Binance...');
+ const info=await reqJSON('/api/v3/exchangeInfo',16000);
+ if(gen!==state.generation)throw Error('Cancelado');
+ const {active,notAvailable}=F.intersect(listed.approved,info);
+ const unavailable=[...listed.unmapped,...notAvailable];
+ $('unsupportedNames').textContent=unavailable.length?'Não monitorados (sem preço compatível): '+unavailable.join(', '):'Todos os símbolos cadastrados têm candles de referência Binance. Não são preços da Safirion.';
+ if(!active.length)throw Error('Nenhum símbolo cadastrado possui um par Spot USDT equivalente na Binance. Precisamos de outra fonte de dados para esses ativos.');
+ return active.slice(0,75);
+}
+async function loadBars(symbol,gen,limit=235){const rows=await reqJSON(`/api/v3/klines?symbol=${symbol}&interval=5m&limit=${limit}`,15000);if(gen!==state.generation)return false;
+ if(!Array.isArray(rows))return false;const t=now();const valid=rows.filter(k=>Number(k[6])<t-250).map(parseBar).filter(b=>Number.isFinite(b.close)&&Number.isFinite(b.t));if(valid.length<172)return false;
+ state.bars.set(symbol,valid.slice(-225));const current=rows.find(k=>Number(k[0])===Math.floor(t/FIVE)*FIVE);if(current){state.forming.set(symbol,parseBar(current));state.fresh.set(symbol,t);}return true;}
 function trainHistory(symbol){if(!prefs.learning)return;const bars=state.bars.get(symbol)||[];
  // Usa só candles fechados, nunca o candle em formação. Limite intencional por ativo.
  for(let i=Math.max(66,bars.length-28);i<bars.length;i++){
@@ -109,9 +119,9 @@ async function seedUniverse(gen){const symbols=await getUniverse(gen);state.univ
  done++;state.loadCount=done;setProgress(Math.round(100*done/symbols.length));if(done%8===0||done===symbols.length){setMessage(`Preparando análise: ${done}/${symbols.length} ativos; ${state.bars.size} prontos${errors?' • '+errors+' indisponíveis':''}`);refreshStats();}
  await sleep(30);
  }});await Promise.all(workers);if(gen!==state.generation)return;
- if(state.bars.size<5)throw Error('Não foi possível carregar histórico suficiente. Verifique internet, acesso da Binance e permissões do navegador.');
+ if(state.bars.size<1)throw Error('Não foi possível carregar histórico suficiente. Verifique internet, acesso da Binance e permissões do navegador.');
  state.universe=state.universe.filter(s=>state.bars.has(s));save();}
-function currentSnapshot(symbol,includePartial,slot){const bars=state.bars.get(symbol);if(!bars||bars.length<65)return null;
+function currentSnapshot(symbol,includePartial,slot){const bars=state.bars.get(symbol);if(!bars||bars.length<170)return null;
  if(!includePartial)return E.buildFeatures(bars);
  const k=state.forming.get(symbol);if(!k||k.t!==slot||now()-(state.fresh.get(symbol)||0)>20000)return null;
  return E.buildFeatures([...bars.filter(b=>b.t<slot),k]);}
@@ -120,12 +130,12 @@ function candidateFor(symbol,target,stage){const slot=target-FIVE;const ready=st
  if(stage==='final'&&ready.at(-1)?.t!==slot)return null;
  if(stage==='pre'&&ready.at(-1)?.t!==slot-FIVE)return null;
  const features=currentSnapshot(symbol,stage==='pre',slot);if(!features)return null;
- const signal=E.scoreSignal(features,Number(prefs.threshold));if(!signal||signal.side==='AGUARDAR')return null;
+ const signal=A.decide(stage==='pre'?[...ready.filter(b=>b.t<slot),state.forming.get(symbol)].filter(Boolean):ready,Number(prefs.threshold));if(!signal||signal.side==='AGUARDAR')return null;
  const vec=L.vector(features);let ml=null;
  if(state.model.live>=100&&state.evaluated>=30&&vec){const p=state.model.probability(vec);ml=signal.side==='COMPRA'?p:1-p;
  // Modelo não calibrado: usado somente como veto suave quando contradiz muito os filtros.
  if(ml!==null&&ml<.38)return null;}
- return {symbol,side:signal.side,score:signal.score,reasons:signal.reasons,features:signal.features,time:target,vector:vec,ml};}
+ return {symbol,side:signal.side,score:signal.score,reasons:signal.reasons,regime:signal.regime,strategy:signal.strategy,indicators:signal.indicators,features:signal.features,time:target,vector:vec,ml};}
 function scan(target,stage){const candidates=[];
  for(const symbol of state.universe){const s=candidateFor(symbol,target,stage);if(s)candidates.push(s);}
  return candidates.sort((a,b)=>b.score-a.score+(Number(b.ml||0)-Number(a.ml||0))*12).slice(0,stage==='pre'?5:3);}
@@ -149,14 +159,14 @@ async function doConfirm(target,gen){state.confirmedSlot=target;const deadline=t
  for(const s of results){const id=`${MODE}:${s.symbol}:${target}:${s.side}`;
  if(state.alertSeen.has(id)||state.pending.some(p=>p.id===id)||state.history.some(p=>p.id===id))continue;
  state.alertSeen.add(id);state.pending.push({...s,id,status:'PENDENTE',notified:s===results[0]});state.alertCount++;}
- const best=results[0];setHero(best.side==='COMPRA'?'buy':'sell',`${best.side} • ${best.symbol.replace('USDT','')}/USDT`,`Vela M5 abriu ${brTime(target)} • nota técnica ${best.score}/100`,best.reasons.join(' · '),best.side==='COMPRA'?'▲':'▼');
+ const best=results[0];setHero(best.side==='COMPRA'?'buy':'sell',`${best.side} • ${best.symbol.replace('USDT','')}/USDT`,`Vela M5 abriu ${brTime(target)} • nota técnica ${best.score}/100`,`${best.strategy||'Estratégia'}: `+best.reasons.join(' · '),best.side==='COMPRA'?'▲':'▼');
  alertUser(`Radar M5: ${best.side}`,`${best.symbol.replace('USDT','')}/USDT na abertura ${brTime(target)}. Pontuação ${best.score} de 100.`);
  save();refreshStats();}
 function onClosed(symbol,k){let bars=state.bars.get(symbol);if(!bars)return;
  const last=bars.at(-1);
  if(last&&k.t<last.t)return;
  if(last&&k.t===last.t)bars[bars.length-1]=k;else bars.push(k);
- if(bars.length>130)bars.splice(0,bars.length-130);
+ if(bars.length>225)bars.splice(0,bars.length-225);
  state.fresh.set(symbol,now());state.lastData=now();
  if(prefs.learning&&(!last||k.t>last.t)){
    const f=E.buildFeatures(bars.slice(0,-1)),v=L.vector(f);
@@ -188,9 +198,9 @@ function setButtons(running){$('startBtn').disabled=running;$('stopBtn').disable
 function stop(silent=false){state.run=false;state.generation++;state.loading=false;state.sockets.forEach(s=>s.close());state.sockets=[];state.socketCount=0;setButtons(false);status('off','Desligado');if(!silent)setMessage('Scanner parado. O aprendizado foi salvo.');save();}
 async function start(){if(state.run)return;state.run=true;state.loading=true;const gen=++state.generation;
  state.bars.clear();state.forming.clear();state.fresh.clear();state.universe=[];state.previews=[];state.signals=[];state.preSlot=0;state.confirmedSlot=0;state.alertCount=0;state.loadCount=0;state.lastData=0;state.lastVisible=now();
- setButtons(true);status('loading','Carregando');setProgress(0);setMessage('Conectando à Binance...');setHero('neutral','CARREGANDO','Baixando histórico técnico para análise.','Os alertas começarão quando o mercado estiver sincronizado.');
+ setButtons(true);status('loading','Carregando');setProgress(0);setMessage('Validando lista Safirion informada • dados de referência Binance...');setHero('neutral','CARREGANDO','Carregando candles de referência Binance para os símbolos permitidos.','Os alertas começarão quando o mercado estiver sincronizado.');
  try{await seedUniverse(gen);if(!state.run||gen!==state.generation)return;openSockets(gen);state.loading=false;status('on','Ao vivo');setProgress(100);
-  setMessage(`Monitorando ${state.universe.length} pares Binance Spot USDT. Pré-alerta ${prefs.lead}s antes. Deixe a aba aberta e ativa.`);
+  setMessage(`Monitorando ${state.universe.length} ativos da lista informada, com PREÇOS DE REFERÊNCIA da Binance, não da Safirion. Pré-alerta ${prefs.lead}s antes. Deixe a aba aberta.`);
   finalizePreviousPending();refreshStats();renderDetailedStats();save();
  }catch(e){if(gen!==state.generation)return;stop(true);setProgress(0);setMessage('Falha ao conectar: '+String(e.message||e)+'. Tente 50 ativos ou outra rede.','error');setHero('neutral','SEM CONEXÃO','Não há sinais sem dados recentes.','Verifique se a Binance é acessível pela sua rede.');}}
 function tick(){updateClock();renderSignals();if(!state.run||state.loading)return;
@@ -200,9 +210,10 @@ function tick(){updateClock();renderSignals();if(!state.run||state.loading)retur
  // Nunca apresentar sinal antigo se o navegador retomou tardiamente.
  if(t>=current+900&&t<=current+7300&&state.confirmedSlot!==current&&state.lastData&&t-state.lastData<15000){doConfirm(current,state.generation);}
 }
-function prefsSave(){prefs.universe=$('universe').value;prefs.threshold=$('threshold').value;prefs.lead=$('lead').value;prefs.learning=$('learningToggle').checked;prefs.sound=$('sound').checked;prefs.voice=$('voice').checked;prefs.notify=$('notify').checked;save();updateClock();
+function prefsSave(){prefs.allowedText=$('safirionAssets').value;prefs.threshold=$('threshold').value;prefs.lead=$('lead').value;prefs.learning=$('learningToggle').checked;prefs.sound=$('sound').checked;prefs.voice=$('voice').checked;prefs.notify=$('notify').checked;save();updateClock();
  }
-$('universe').addEventListener('change',()=>{prefsSave();if(state.run){setMessage('Mudou a cobertura. Pare e reinicie o radar para aplicar.', '');}});
+$('safirionAssets').addEventListener('input',()=>{refreshSafirionList();});
+$('saveAssets').addEventListener('click',()=>{prefsSave();refreshSafirionList();setMessage('Lista informada salva localmente. Reinicie o Radar para aplicar. Ativos não listados não serão analisados.');});
 $('threshold').addEventListener('change',prefsSave);$('lead').addEventListener('change',prefsSave);
 for(const id of ['learningToggle','sound','voice','notify'])$(id).addEventListener('change',prefsSave);
 $('startBtn').addEventListener('click',start);$('stopBtn').addEventListener('click',()=>stop());
@@ -213,7 +224,7 @@ $('permissionBtn').addEventListener('click',async()=>{if(!('Notification' in win
 $('statsPeriod').addEventListener('change',renderDetailedStats);
 $('statsScope').addEventListener('change',renderDetailedStats);
 $('statsCsv').addEventListener('click',()=>{const blob=new Blob([S.csv(state.history)],{type:'text/csv;charset=utf-8;'});const u=URL.createObjectURL(blob);const link=document.createElement('a');link.href=u;link.download='Radar_M5_resultados_'+new Date().toISOString().slice(0,10)+'.csv';link.click();setTimeout(()=>URL.revokeObjectURL(u),3000);});
-$('exportBtn').addEventListener('click',()=>{const data=JSON.stringify({exportedAt:new Date().toISOString(),source:'Binance Spot USDT',...restore()},null,2);const link=document.createElement('a');link.href=URL.createObjectURL(new Blob([data],{type:'application/json'}));link.download='Radar_M5_memoria_'+new Date().toISOString().slice(0,10)+'.json';link.click();setTimeout(()=>URL.revokeObjectURL(link.href),2000);});
+$('exportBtn').addEventListener('click',()=>{const data=JSON.stringify({exportedAt:new Date().toISOString(),source:'Binance SPOT USDT referência; catálogo Safirion manual',...restore()},null,2);const link=document.createElement('a');link.href=URL.createObjectURL(new Blob([data],{type:'application/json'}));link.download='Radar_M5_memoria_'+new Date().toISOString().slice(0,10)+'.json';link.click();setTimeout(()=>URL.revokeObjectURL(link.href),2000);});
 $('clearHistory').addEventListener('click',()=>{if(!confirm('Apagar histórico e aprendizado deste navegador? Esta ação não tem volta sem backup.'))return;
  state.model=new L.OnlineModel();state.history=[];state.preAlerts=[];state.pending=[];state.evaluated=0;state.correct=0;save();refreshStats();renderHistory();renderDetailedStats();setMessage('Histórico e aprendizado locais apagados.');});
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();state.beforeInstallPrompt=e;$('installBtn').hidden=false;});
@@ -222,6 +233,6 @@ window.addEventListener('pagehide',()=>save());
 document.addEventListener('visibilitychange',()=>{if(document.hidden){state.lastVisible=now();if(state.run)setMessage('Em segundo plano: Android pode suspender a coleta. Retorne ao radar para garantir sinais atuais.');}
  else if(state.run){const slept=now()-state.lastVisible;if(slept>30000){setMessage('O radar ficou em segundo plano. Reconecte para atualizar o histórico antes de novos sinais.','error');stop(true);status('off','Reinicie');setMessage('Dados podem estar defasados. Pressione Iniciar radar para ressincronizar.','error');}else setMessage('Radar visível novamente.');}});
 if('serviceWorker' in navigator&&location.protocol!=='file:'&&window.isSecureContext)navigator.serviceWorker.register('./sw.js').catch(()=>{});
-setInterval(tick,1000);updateClock();refreshStats();renderHistory();renderDetailedStats();renderPreviews();renderSignals();
+refreshSafirionList();setInterval(tick,1000);updateClock();refreshStats();renderHistory();renderDetailedStats();renderPreviews();renderSignals();
 if(state.pending.length)setMessage('Existem previsões pendentes de uma sessão antiga; elas não serão consideradas sem o dado de encerramento.');
 })();

@@ -1,0 +1,25 @@
+{
+  "name": "Radar M5 • Filtro Safirion",
+  "short_name": "Radar Safirion",
+  "description": "Scanner de análise técnica de criptomoedas com sinais de 5 minutos, sem executar ordens.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#081326",
+  "theme_color": "#081326",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
